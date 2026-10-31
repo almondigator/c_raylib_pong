@@ -1,17 +1,23 @@
-.PHONY: build run clean
+TARGET=main
+SRC=main.c
+CC=cc
 
-BUILD_DIR = ./build
-PROJECT_NAME=game
+CFLAGS = -std=c99 -Wall -O2
 
-all: build run
+# MACOS
+INCLUDES = -I$(shell brew --prefix raylib)/include
+LDFLAGS = -L$(shell brew --prefix raylib)/lib -lraylib \
+          -framework OpenGL \
+          -framework Cocoa \
+          -framework IOKit 
 
-build:
-	@cmake -S . -B $(BUILD_DIR)
-	@cmake --build $(BUILD_DIR)
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $(SRC) -o $(TARGET) $(LDFLAGS)
+
+run: $(TARGET)
+	./$(TARGET)
 
 clean:
-	@rm -rf $(BUILD_DIR)
-	@rm -rf .cache/
-
-run:
-	@cd $(BUILD_DIR)/$(PROJECT_NAME) && ./$(PROJECT_NAME)
+	rm -f $(TARGET)

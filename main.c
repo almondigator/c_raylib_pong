@@ -1,10 +1,7 @@
 #include <raylib.h>
 #include <raymath.h>
-
 #include <stdio.h>
 
-#define FNL_IMPL
-#include "FastNoiseLite.h"
 
 int main(void)
 {
