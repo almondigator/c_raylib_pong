@@ -4,18 +4,18 @@ CC=cc
 
 CFLAGS = -std=c99 -Wall -O2
 
-OS := MACOS
+UNAME := $(shell uname -s)
 
 # MACOS
-ifeq ($(OS), MACOS)
+ifeq ($(UNAME), Darwin)
 	INCLUDES = -I$(shell brew --prefix raylib)/include
 	LDFLAGS = -L$(shell brew --prefix raylib)/lib -lraylib \
 		  -framework OpenGL \
 		  -framework Cocoa \
 		  -framework IOKit 
-else ifeq ($(OS), LINUX)
+else ifeq ($(UNAME), Linux)
 	INCLUDES = $(shell pkg-config --cflags raylib)
-	LDFLAGS = $(shell pkg-config --libs raylib) 
+	LDFLAGS = $(shell pkg-config --libs raylib) -lm
 endif
 
 all: $(TARGET)
