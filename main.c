@@ -44,9 +44,10 @@ uint16_t balls_offset = 0;
 uint16_t balls_capacity = BALLS_MAX;
 aabb_t balls[BALLS_MAX];
 Vector2 velocity[BALLS_MAX];
-void balls_init();
-void balls_update();
 
+void balls_init();
+void balls_append();
+void balls_update();
 
 void draw_background()
 {
@@ -91,7 +92,12 @@ void aabb_render(aabb_t bb){
 	DrawRectangleLines(bb.min.x, bb.min.y, bb.max.x - bb.min.x, bb.max.y - bb.min.y, BLUE);
 }
 bool aabb_collide(aabb_t bb1, aabb_t bb2){
-	return false;
+	return 
+	bb1.min.x <= bb2.max.x &&
+	bb1.min.y <= bb2.max.y &&
+	bb1.max.x >= bb2.min.x &&
+	bb1.max.y >= bb2.min.y \
+	;
 }
 void aabb_offset(aabb_t *bb, Vector2 offset){
 	bb->min = Vector2Add(bb->min, offset);
@@ -126,6 +132,99 @@ void players_input_handler(){
 	_input_handler(1, KEY_O, KEY_L);
 }
 
+//void balls_init(){}
+void balls_append(){
+	Vector2 md = (Vector2) {virtual_width/2 - TILE_SIZE/2,virtual_height/2 - TILE_SIZE/2};
+	aabb_init(balls + balls_offset, md, Vector2AddValue(md, TILE_SIZE));
+	velocity[balls_offset]= (Vector2){-30, 0.0f};
+	balls_offset++;
+};
+
+void balls_update(){
+	float dt = GetFrameTime();
+	float speed = 2.0f;
+	float x = 0.0f;
+	float y = 0.0f;
+	
+	for (uint16_t i = balls_offset; i-- > 0;)
+	{
+
+		// check for player colide
+		for (size_t p = 0; p < PLAYERS_MAX; p++)
+		{
+			if(aabb_collide(players[p], balls[i])){
+				Vector2 ball_center   = {0};
+				Vector2 player_center = {0};
+				
+				ball_center.x = balls[i].min.x + (balls[i].max.x - balls[i].min.x) / 2.0f;
+				ball_center.y = balls[i].min.y + (balls[i].max.y - balls[i].min.y) / 2.0f;
+
+				player_center.x = players[p].min.x + (players[p].max.x - players[p].min.x) / 2.0f;
+				player_center.y = players[p].min.y + (players[p].max.y - players[p].min.y) / 2.0f;
+				
+				//Vector2 normalized_vel = velocity[i]; // vector direcor
+				//Vector2 magnitud_vel = Vector2Scale(normalized_vel, TILE_SIZE/2);
+
+
+
+				// compute hit
+
+
+				//overlap_center.x = fmin(balls[i].max.x, players[p].max.x) + (fmin(balls[i].max.x, players[p].max.x) - fmax(balls[i].min.x, players[p].min.x)) / 2.0f;
+				//overlap_center.y = fmin(balls[i].max.y, players[p].max.y) + (fmin(balls[i].max.y, players[p].max.y) - fmax(balls[i].min.y, players[p].min.y)) / 2.0f;
+
+				float overlap_x = fmin(balls[i].max.x, players[p].max.x) - fmax(balls[i].min.x, players[p].min.x);
+				float overlap_y = fmin(balls[i].max.y, players[p].max.y) - fmax(balls[i].min.y, players[p].min.y);
+				Vector2 n = {0};
+				if(overlap_x > overlap_y){
+					// arriba o abajo
+					if(ball_center.y > player_center.y){
+						//arriba
+						n = (Vector2){0.0, 1.0f};
+					}else{
+						//abajo
+						n = (Vector2){0.0, -1.0f};
+					}
+				}else{
+					if(ball_center.x < virtual_width /2 ){
+						// mas cerca del p1
+						n = (Vector2){-1.0, 0.0f};
+					}else{
+						n = (Vector2){1.0, 0.0f};
+					}
+				}
+				
+
+				//overlap_center.x = players[p].min.x + (players[p].max.x - players[p].min.x) / 2.0f;
+				//overlap_center.y = players[p].min.y + (players[p].max.y - players[p].min.y) / 2.0f;
+
+				// check overlaps
+				//float ox = players[p].min.x - balls[i].max.x;
+				//float oy = players[p].min.y - balls[i].max.y;
+
+				
+				// reflexion vectoria
+				// r = v - 2(v dot n) * n;
+				//Vector2 normal =  Vector2Subtract(ball_center, n);
+				//normal = Vector2Normalize(normal);
+				velocity[i] = Vector2Reflect(velocity[i], n);
+			}
+		}	
+
+		// collide con bordes
+		if(balls[i].min.y < 0) {
+			velocity[i] = Vector2Reflect(velocity[i], (Vector2){0.0,-1.0});
+		}
+		if(balls[i].max.y > virtual_height) {
+			velocity[i] = Vector2Reflect(velocity[i], (Vector2){0.0,1.0});
+		}
+
+		Vector2 v = {0};
+		v.x  +=  velocity[i].x * dt;
+		v.y  +=  velocity[i].y * dt;
+		aabb_offset(balls + i, v);
+	}
+}
 
 int main(void)
 {
@@ -150,9 +249,12 @@ int main(void)
 	camera.zoom = 1.0;
 
 	players_init();
+	balls_append();
 	while (!WindowShouldClose())
 	{
 		players_input_handler();
+
+		balls_update();
 		BeginTextureMode(target);
 		
 		BeginMode2D(camera);
