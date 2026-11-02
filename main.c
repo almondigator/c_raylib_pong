@@ -23,6 +23,42 @@ float screen_height;
 float virtual_width;
 float virtual_height;
 
+
+typedef struct {
+	float ticks;
+	float seconds;
+	bool finished;
+} ctimer_t;
+void ctimer_init(ctimer_t* timer, float seconds);
+void ctimer_tick(ctimer_t* timer, float dt);
+bool ctimer_finished(ctimer_t* timer);
+void ctimer_restart(ctimer_t* timer);
+
+void ctimer_init(ctimer_t* timer, float seconds){
+	timer->finished=false;
+	timer->seconds=seconds;
+	timer->ticks=0.0f;
+}
+void ctimer_tick(ctimer_t* timer, float dt){
+	if(timer->ticks >= timer->seconds)
+	return;
+
+	timer->ticks=+dt;
+	if(timer->ticks >= timer->seconds)
+		timer->finished = true;
+}
+
+bool ctimer_finished(ctimer_t* timer){
+	return timer->finished;
+}
+
+void ctimer_restart(ctimer_t* timer){
+	timer->finished=false;
+	timer->ticks = 0.0f;
+}
+
+
+
 typedef struct
 {
 	Vector2 min;
@@ -41,12 +77,13 @@ void players_init();
 void players_input_handler();
 
 uint16_t balls_offset = 0;
-uint16_t balls_capacity = BALLS_MAX;
+uint16_t balls_capacity = BALLS_MAX; // no need in this case. addition for the future
 aabb_t balls[BALLS_MAX];
 Vector2 velocity[BALLS_MAX];
 
 void balls_init();
 void balls_append();
+void balls_delete();
 void balls_update();
 
 void draw_background()
@@ -132,19 +169,23 @@ void players_input_handler(){
 	_input_handler(1, KEY_O, KEY_L);
 }
 
-//void balls_init(){}
 void balls_append(){
 	Vector2 md = (Vector2) {virtual_width/2 - TILE_SIZE/2,virtual_height/2 - TILE_SIZE/2};
 	aabb_init(balls + balls_offset, md, Vector2AddValue(md, TILE_SIZE));
-	velocity[balls_offset]= (Vector2){-30, 0.0f};
+	velocity[balls_offset]= (Vector2){-50, 0.0f};
 	balls_offset++;
 };
 
+
+void balls_delete(){
+	if(balls_offset == 1){
+		balls_offset--;
+		return;
+	}
+}
+
 void balls_update(){
 	float dt = GetFrameTime();
-	float speed = 2.0f;
-	float x = 0.0f;
-	float y = 0.0f;
 	
 	for (uint16_t i = balls_offset; i-- > 0;)
 	{
@@ -155,59 +196,65 @@ void balls_update(){
 			if(aabb_collide(players[p], balls[i])){
 				Vector2 ball_center   = {0};
 				Vector2 player_center = {0};
+				float max_ang = 50;
+
 				
 				ball_center.x = balls[i].min.x + (balls[i].max.x - balls[i].min.x) / 2.0f;
 				ball_center.y = balls[i].min.y + (balls[i].max.y - balls[i].min.y) / 2.0f;
 
+
 				player_center.x = players[p].min.x + (players[p].max.x - players[p].min.x) / 2.0f;
 				player_center.y = players[p].min.y + (players[p].max.y - players[p].min.y) / 2.0f;
-				
-				//Vector2 normalized_vel = velocity[i]; // vector direcor
-				//Vector2 magnitud_vel = Vector2Scale(normalized_vel, TILE_SIZE/2);
-
-
-
-				// compute hit
-
-
-				//overlap_center.x = fmin(balls[i].max.x, players[p].max.x) + (fmin(balls[i].max.x, players[p].max.x) - fmax(balls[i].min.x, players[p].min.x)) / 2.0f;
-				//overlap_center.y = fmin(balls[i].max.y, players[p].max.y) + (fmin(balls[i].max.y, players[p].max.y) - fmax(balls[i].min.y, players[p].min.y)) / 2.0f;
 
 				float overlap_x = fmin(balls[i].max.x, players[p].max.x) - fmax(balls[i].min.x, players[p].min.x);
 				float overlap_y = fmin(balls[i].max.y, players[p].max.y) - fmax(balls[i].min.y, players[p].min.y);
+				
+				bool top_kick = false;
+				bool bottom_kick = false;
 				Vector2 n = {0};
 				if(overlap_x > overlap_y){
+					
 					// arriba o abajo
 					if(ball_center.y > player_center.y){
 						//arriba
+						top_kick = true;
 						n = (Vector2){0.0, 1.0f};
+						
 					}else{
 						//abajo
+						bottom_kick=true;
 						n = (Vector2){0.0, -1.0f};
+
 					}
 				}else{
 					if(ball_center.x < virtual_width /2 ){
 						// mas cerca del p1
-						n = (Vector2){-1.0, 0.0f};
-					}else{
 						n = (Vector2){1.0, 0.0f};
+
+					}else{
+						n = (Vector2){-1.0, 0.0f};
+
 					}
 				}
 				
-
-				//overlap_center.x = players[p].min.x + (players[p].max.x - players[p].min.x) / 2.0f;
-				//overlap_center.y = players[p].min.y + (players[p].max.y - players[p].min.y) / 2.0f;
-
-				// check overlaps
-				//float ox = players[p].min.x - balls[i].max.x;
-				//float oy = players[p].min.y - balls[i].max.y;
-
+				float push = (n.x != 0.0f) ? overlap_x : overlap_y;
+				aabb_offset(balls + i, Vector2Scale(n, push));
+				float speed = Vector2Length(velocity[i]);
 				
-				// reflexion vectoria
-				// r = v - 2(v dot n) * n;
-				//Vector2 normal =  Vector2Subtract(ball_center, n);
-				//normal = Vector2Normalize(normal);
-				velocity[i] = Vector2Reflect(velocity[i], n);
+				// tilesize is half size of player
+				float dy = Vector2Subtract(ball_center, player_center).y / TILE_SIZE;
+				dy = Clamp(dy, -1, 1);
+				float new_ang = dy * max_ang;
+				
+				if(top_kick || bottom_kick){
+					//float dir = (ball_center.x < virtual_width/2) ?  -1.0f:1.0f;
+					//velocity[i].x = dir * velocity[i].x;
+					//velocity[i].y = bottom_kick ? -velocity[i].y : velocity[i].y;
+
+				}else{	
+					velocity[i].x = n.x * speed * cosf(new_ang * (PI/180));
+					velocity[i].y =  speed * sinf(new_ang * (PI/180));	
+				}
 			}
 		}	
 
@@ -218,7 +265,19 @@ void balls_update(){
 		if(balls[i].max.y > virtual_height) {
 			velocity[i] = Vector2Reflect(velocity[i], (Vector2){0.0,1.0});
 		}
+		
+		if(balls[i].min.x <= 0) {
+			score[1] +=1;
+			balls_delete();
+			balls_append();
+		}
+		if(balls[i].max.x >= virtual_width) {
+			score[0] +=1;
+			balls_delete();
+			balls_append();
+		}
 
+		// update
 		Vector2 v = {0};
 		v.x  +=  velocity[i].x * dt;
 		v.y  +=  velocity[i].y * dt;
@@ -247,7 +306,7 @@ int main(void)
 	Rectangle dst = {offset.x, offset.y, target.texture.width * scale - offset.x, target.texture.height * scale - offset.y};
 	SetTargetFPS(60);
 	camera.zoom = 1.0;
-
+	
 	players_init();
 	balls_append();
 	while (!WindowShouldClose())
@@ -258,12 +317,16 @@ int main(void)
 		BeginTextureMode(target);
 		
 		BeginMode2D(camera);
+
 			draw_background();
 			draw_players();
 			draw_balls();
 			
-			draw_colliders();
+			//draw_colliders();
+						
+
 		EndMode2D();
+		DrawText(TextFormat("score1 %i, score2 %i,", score[0],score[1]), virtual_width/2 - 30, virtual_height - 10, 1, BLACK);
 		EndTextureMode();
 
 		BeginDrawing();
