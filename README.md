@@ -1,11 +1,19 @@
+Dummy pong implementation with self made sprites.
+
+
+# Screenshot
+
+![Pong screenshot](image.png)
+
+# Sprite Sheet
+
+![Pong sprite sheet](pong_sprite_sheet.png)
 
 # Build & Run
 ```
 make clean
-make build
-make run
-make
-
+make main
+make run # or ./main
 ```
 
 # External Libraries
